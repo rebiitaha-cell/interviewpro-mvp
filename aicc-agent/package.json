@@ -1,0 +1,20 @@
+{
+  "name": "aicc-agent",
+  "version": "1.0.0",
+  "description": "AI Code Commander - ReAct agent for autonomous code operations",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "axios": "^1.7.9",
+    "express": "^4.21.2",
+    "pg": "^8.13.3",
+    "uuid": "^11.0.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

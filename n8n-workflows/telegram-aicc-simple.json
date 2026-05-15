@@ -1,0 +1,170 @@
+{
+  "name": "Telegram → AICC (simplifié)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-aicc",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-telegram",
+      "name": "Webhook Telegram",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "telegram-aicc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst message = body.message || body.edited_message || body.channel_post;\n\nif (!message || !message.text) {\n  return [{ json: { skip: true, reason: 'No text message' } }];\n}\n\nconst chatId = String(message.chat.id);\nconst missionText = message.text.trim();\n\nif (!missionText) {\n  return [{ json: { skip: true, reason: 'Empty message' } }];\n}\n\nreturn [{\n  json: {\n    skip: false,\n    chat_id: chatId,\n    mission: missionText,\n    project_slug: 'interviewpro'\n  }\n}];"
+      },
+      "id": "extract-mission",
+      "name": "Extraire la mission",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-skip",
+      "name": "Message valide?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://aicc-agent:3010/agent/start",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "mission",
+              "value": "={{ $json.mission }}"
+            },
+            {
+              "name": "project_slug",
+              "value": "={{ $json.project_slug }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "start-aicc",
+      "name": "Démarrer AICC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Extraire la mission').item.json.chat_id }}"
+            },
+            {
+              "name": "text",
+              "value": "=🤖 AICC démarré — Mission reçue (Audit #{{ $json.audit_id }})\\n\\nJe travaille sur ta mission. Le rapport arrive directement ici dès que c'est terminé."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "confirm-telegram",
+      "name": "Confirmation Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Répondre OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      },
+      "id": "respond-skip",
+      "name": "Répondre (skip)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 420]
+    }
+  ],
+  "connections": {
+    "Webhook Telegram": {
+      "main": [
+        [{ "node": "Extraire la mission", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extraire la mission": {
+      "main": [
+        [{ "node": "Message valide?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Message valide?": {
+      "main": [
+        [{ "node": "Démarrer AICC", "type": "main", "index": 0 }],
+        [{ "node": "Répondre (skip)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Démarrer AICC": {
+      "main": [
+        [{ "node": "Confirmation Telegram", "type": "main", "index": 0 }]
+      ]
+    },
+    "Confirmation Telegram": {
+      "main": [
+        [{ "node": "Répondre OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-05-15T00:00:00.000Z",
+  "versionId": "1"
+}

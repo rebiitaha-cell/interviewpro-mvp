@@ -1,0 +1,80 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: aicc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aicc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicc_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aicc_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aicc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aicc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: aicc_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-aicc_db}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-aicc}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-aicc_password}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aicc_network
+
+  aicc-agent:
+    build:
+      context: ./aicc-agent
+      dockerfile: Dockerfile
+    container_name: aicc_agent
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    environment:
+      - PORT=3010
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - PROJECT_ROOT=${PROJECT_ROOT:-/var/www/interviewpro-v2}
+      - POSTGRES_USER=${POSTGRES_USER:-aicc}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aicc_password}
+      - POSTGRES_DB=${POSTGRES_DB:-aicc_db}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    volumes:
+      - ${PROJECT_ROOT:-/var/www/interviewpro-v2}:/var/www/interviewpro-v2:rw
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aicc_network
+
+volumes:
+  postgres_data:
+  n8n_data:
+
+networks:
+  aicc_network:
+    driver: bridge
