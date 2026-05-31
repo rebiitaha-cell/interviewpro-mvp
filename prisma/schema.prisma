@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Country {
+  id          Int               @id @default(autoincrement())
+  code        String            @unique
+  name        String
+  language    String?
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  cities      City[]
+  pipeline    Pipeline?
+  clicks      ClickEvent[]
+  conversions ConversionEvent[]
+}
+
+model City {
+  id           Int          @id @default(autoincrement())
+  name         String
+  countryId    Int
+  country      Country      @relation(fields: [countryId], references: [id])
+  universities University[]
+}
+
+model University {
+  id     Int    @id @default(autoincrement())
+  name   String
+  cityId Int
+  city   City   @relation(fields: [cityId], references: [id])
+}
+
+model Pipeline {
+  id          Int      @id @default(autoincrement())
+  countryId   Int      @unique
+  country     Country  @relation(fields: [countryId], references: [id])
+  status      String   @default("inactive")
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClickEvent {
+  id          Int               @id @default(autoincrement())
+  countryId   Int
+  country     Country           @relation(fields: [countryId], references: [id])
+  source      String?
+  referrer    String?
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime          @default(now())
+  conversions ConversionEvent[]
+}
+
+model ConversionEvent {
+  id           Int         @id @default(autoincrement())
+  countryId    Int
+  country      Country     @relation(fields: [countryId], references: [id])
+  clickEventId Int?
+  click        ClickEvent? @relation(fields: [clickEventId], references: [id])
+  type         String
+  value        Float?
+  createdAt    DateTime    @default(now())
+}
