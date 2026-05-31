@@ -1,0 +1,61 @@
+{
+  "name": "InterviewPro – Pipeline Stats",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "pipeline-stats",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-stats",
+      "name": "Webhook GET /pipeline-stats",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "pipeline-stats"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:3000/api/pipeline/stats{{ $json.query.country ? '?country=' + $json.query.country : '' }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "fetch-stats",
+      "name": "Fetch Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst stats = data.stats || [];\nconst lines = stats.map(s =>\n  `${s.country.code} ${s.country.name}: ${s.status.toUpperCase()} | Clicks: ${s.clicks} | Conversions: ${s.conversions} | Rate: ${s.conversionRate}`\n).join('\\n');\nreturn [{ json: { text: `📊 Pipeline Stats (${stats.length} countries):\\n\\n${lines || 'No data'}\\n\\nTotal clicks: ${data.total?.clicks ?? 0} | Total conversions: ${data.total?.conversions ?? 0}` } }];"
+      },
+      "id": "format-stats",
+      "name": "Format Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-stats",
+      "name": "Respond with Stats",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook GET /pipeline-stats": { "main": [[{ "node": "Fetch Pipeline Stats", "type": "main", "index": 0 }]] },
+    "Fetch Pipeline Stats": { "main": [[{ "node": "Format Stats", "type": "main", "index": 0 }]] },
+    "Format Stats": { "main": [[{ "node": "Respond with Stats", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["interviewpro", "pipeline"],
+  "versionId": "1"
+}
