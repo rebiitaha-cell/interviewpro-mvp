@@ -1,0 +1,85 @@
+{
+  "name": "InterviewPro – Pipeline Activate",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-activate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-activate",
+      "name": "Webhook POST /pipeline-activate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "pipeline-activate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst countryCode = body.countryCode || body.country_code || body.country;\nif (!countryCode) throw new Error('countryCode is required');\nreturn [{ json: { countryCode: countryCode.toUpperCase() } }];"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/pipeline/activate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [{ "name": "countryCode", "value": "={{ $json.countryCode }}" }]
+        },
+        "options": { "timeout": 10000 }
+      },
+      "id": "call-activate",
+      "name": "Activate Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.TELEGRAM_CHAT_ID }}" },
+            { "name": "text", "value": "=✅ Pipeline ACTIVATED for {{ $('Validate Input').item.json.countryCode }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-telegram",
+      "name": "Notify Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Activate Pipeline').item.json }}",
+        "options": {}
+      },
+      "id": "respond-activate",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook POST /pipeline-activate": { "main": [[{ "node": "Validate Input", "type": "main", "index": 0 }]] },
+    "Validate Input": { "main": [[{ "node": "Activate Pipeline", "type": "main", "index": 0 }]] },
+    "Activate Pipeline": { "main": [[{ "node": "Notify Telegram", "type": "main", "index": 0 }]] },
+    "Notify Telegram": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["interviewpro", "pipeline"],
+  "versionId": "1"
+}

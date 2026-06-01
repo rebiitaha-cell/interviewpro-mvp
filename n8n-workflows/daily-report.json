@@ -1,0 +1,65 @@
+{
+  "name": "InterviewPro – Daily Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }] }
+      },
+      "id": "cron-daily",
+      "name": "Every Day at 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:3000/api/pipeline/stats",
+        "options": { "timeout": 10000 }
+      },
+      "id": "fetch-daily-stats",
+      "name": "Fetch Daily Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst stats = data.stats || [];\nconst active = stats.filter(s => s.status === 'active');\nconst paused = stats.filter(s => s.status === 'paused');\nconst date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\n\nconst topCountries = [...stats].sort((a, b) => b.clicks - a.clicks).slice(0, 5);\nconst topLines = topCountries.map((s, i) => `${i+1}. ${s.country.name}: ${s.clicks} clicks / ${s.conversions} conv`).join('\\n');\n\nconst report = [\n  `📅 *Rapport Journalier InterviewPro*`,\n  `${date}`,\n  ``,\n  `🌍 *Pipelines:* ${active.length} actifs | ${paused.length} en pause`,\n  `📊 *Total:* ${data.total.clicks} clicks | ${data.total.conversions} conversions`,\n  ``,\n  `🏆 *Top 5 pays:*`,\n  topLines || 'Aucune donnée',\n  ``,\n  `_Rapport automatique InterviewPro v2_`\n].join('\\n');\n\nreturn [{ json: { report } }];"
+      },
+      "id": "build-report",
+      "name": "Build Daily Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.TELEGRAM_CHAT_ID }}" },
+            { "name": "text", "value": "={{ $json.report }}" },
+            { "name": "parse_mode", "value": "Markdown" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-report",
+      "name": "Send Report to Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Every Day at 08:00": { "main": [[{ "node": "Fetch Daily Stats", "type": "main", "index": 0 }]] },
+    "Fetch Daily Stats": { "main": [[{ "node": "Build Daily Report", "type": "main", "index": 0 }]] },
+    "Build Daily Report": { "main": [[{ "node": "Send Report to Telegram", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["interviewpro", "reporting"],
+  "versionId": "1"
+}

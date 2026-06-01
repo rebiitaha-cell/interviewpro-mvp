@@ -1,0 +1,96 @@
+{
+  "name": "InterviewPro – Geo Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geo-enrichment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-geo",
+      "name": "Webhook POST /geo-enrichment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "geo-enrichment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst ip = body.ip || $input.first().json.headers?.['x-forwarded-for']?.split(',')[0].trim();\nif (!ip) throw new Error('ip is required');\nreturn [{ json: { ip } }];"
+      },
+      "id": "extract-ip",
+      "name": "Extract IP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ipapi.co/{{ $json.ip }}/json/",
+        "options": { "timeout": 5000 }
+      },
+      "id": "geoip-lookup",
+      "name": "GeoIP Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const geo = $input.first().json;\nconst countryCode = geo.country_code || 'UNKNOWN';\nconst langMap = {\n  FR:'french',DE:'german',GB:'english',ES:'spanish',IT:'italian',\n  MA:'arabic',DZ:'arabic',TN:'arabic',SA:'arabic',EG:'arabic',\n  SN:'french',CM:'french',BE:'dutch',NL:'dutch',PT:'portuguese',\n  BR:'portuguese',TR:'turkish',PL:'polish',US:'english',CA:'english'\n};\nconst language = langMap[countryCode] || 'english';\nconst rtlLangs = ['arabic','hebrew','persian','dari','urdu'];\nreturn [{ json: {\n  ip: $('Extract IP').item.json.ip,\n  countryCode,\n  countryName: geo.country_name || 'Unknown',\n  city: geo.city || null,\n  language,\n  rtl: rtlLangs.includes(language),\n  timezone: geo.timezone || null,\n  latitude: geo.latitude || null,\n  longitude: geo.longitude || null\n} }];"
+      },
+      "id": "enrich-geo",
+      "name": "Enrich Geo Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:3000/api/pipeline/countries?active=true",
+        "options": { "timeout": 5000 }
+      },
+      "id": "fetch-active-countries",
+      "name": "Fetch Active Countries",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const geo = $('Enrich Geo Data').item.json;\nconst countries = $input.first().json.countries || [];\nconst match = countries.find(c => c.code === geo.countryCode);\nreturn [{ json: { ...geo, hasActivePipeline: match ? match.pipeline?.status === 'active' : false, pipelineStatus: match?.pipeline?.status || null } }];"
+      },
+      "id": "check-pipeline",
+      "name": "Check Pipeline Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-geo",
+      "name": "Respond with Geo Data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook POST /geo-enrichment": { "main": [[{ "node": "Extract IP", "type": "main", "index": 0 }]] },
+    "Extract IP": { "main": [[{ "node": "GeoIP Lookup", "type": "main", "index": 0 }]] },
+    "GeoIP Lookup": { "main": [[{ "node": "Enrich Geo Data", "type": "main", "index": 0 }]] },
+    "Enrich Geo Data": { "main": [[{ "node": "Fetch Active Countries", "type": "main", "index": 0 }]] },
+    "Fetch Active Countries": { "main": [[{ "node": "Check Pipeline Status", "type": "main", "index": 0 }]] },
+    "Check Pipeline Status": { "main": [[{ "node": "Respond with Geo Data", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["interviewpro", "geo"],
+  "versionId": "1"
+}
